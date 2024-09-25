@@ -1,24 +1,42 @@
-defmodule Server do
-  @moduledoc """
-  Your implementation of a Redis server
-  """
+defmodule CodecraftersRedisElixir.Server do
+  @port 6379
 
-  use Application
+  def accept() do
+    {:ok, socket} =
+      :gen_tcp.listen(@port, [:binary, active: false, reuseaddr: true])
 
-  def start(_type, _args) do
-    Supervisor.start_link([{Task, fn -> Server.listen() end}], strategy: :one_for_one)
+    IO.puts("Accepting connections on port #{@port}")
+    loop_acceptor(socket)
   end
 
-  @doc """
-  Listen for incoming connections
-  """
-  def listen() do
-    # You can use print statements as follows for debugging, they'll be visible when running tests.
-    IO.puts("Logs from your program will appear here!")
-
-   
-    {:ok, socket} = :gen_tcp.listen(6379, [:binary, active: false, reuseaddr: true])
+  defp loop_acceptor(socket) do
     {:ok, client} = :gen_tcp.accept(socket)
-    :gen_tcp.send(client, "+PONG\r\n")
+    serve(client)
+    loop_acceptor(socket)
+  end
+
+  defp serve(socket) do
+    socket
+    |> read_line()
+    |> (&write_line(&1, socket)).()
+
+    serve(socket)
+  end
+
+  defp read_line(socket) do
+    case :gen_tcp.recv(socket, 0) do
+      {:ok, "*1\r\n$4\r\nPING\r\n"} ->
+        "+PONG\r\n"
+
+      {:error, reason} ->
+        {:error, reason}
+
+      _ ->
+        nil
+    end
+  end
+
+  defp write_line(line, socket) do
+    :gen_tcp.send(socket, line)
   end
 end
